@@ -1,0 +1,437 @@
+---
+title: "Factors that result in Differences between High Airfares and Lower Airfares"
+author: "Seungjun (Josh) Kim & Nina Zacharia"
+date: "October 31st, 2018"
+output: html_document
+fig_width: 3 
+fig_height: 3
+---
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(fig.width=8, fig.height=4) 
+```
+
+# Abstract
+
+Why certain flight itineraries are more expensive? In this project, we investigated which factors drive certain flight itineraries to be more expensive than others. This question is of importance for many consumers who buy plane ticket because understanding which factors are associated with airfares allows them to make customized decisions about which airlines to go with, which airport they should use and more depending on how much they are willing to pay. We used statistical methods including the Kruskal-Wallis rank sum test and Wilcoxon rank sum test and found out that high priced itineraries were more likely to have longer market distances, less likely to have more passengers who paid the same fare for the same itinerary and more likely to have larger number of layovers than than low priced itineraries. The stepwise regression model we created with AIC also suggested similar findings.
+
+# Introduction
+
+Purchasing plane tickets has become a very common thing for people traveling to various places around the world. But not all airfares are the same. Even seemingly similar itineraries can have grossly different prices. Where does this difference in airfares stem from? Tackling this question will allow users of air flights to get a good understanding of why their plane tickets cost a certain amount and to have a better estimate of how much their tickets will approximately cost when they are trying to buy a plane ticket for a certain itinerary. To tackle this question, we used a stratified random sample of 400 U.S. domestic itineraries from 2017. The sample is stratified by quarter and hence there are 100 itineraries from each quarter. The variables of the data include quarter, origin, origin state, destination airport ID, destination state, airport group, operating carrier group, number of passengers who paid the same fare for the same itinerary during a certain quarter and airfare information. There are 400 different data points in the data.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Import Essential Libraries
+library(tidyverse)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Read in Data
+df = read_csv("itineraries-2017.csv")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Looking at dimension of the data (# of rows, # of columns)
+dim(df)
+```
+
+The variable names are the following:
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Looking at variable names of Data
+names(df)
+```
+
+We first looked at the response variable,*airfare*, indicated by the variable named *MARKET_FARE*. 
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Historgram of Airfares of itineraries
+df %>% ggplot(aes(x=MARKET_FARE))+geom_histogram()+ xlab("AirFare") + ggtitle("Distribution of Airfare")
+```
+
+The distribution of airfare was very right skewed. But if we consider its log, it takes on a more normal distribution. We will a new variable named logfare which is the log transformed variable of airfare. This is to see whether the level-level model and the log-level model don't have major differences later on.
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Make a copy of the dataframe. Make new column that contains log transformed values of MARKET_FARE in that new dataframe.
+df2 <- read_csv("itineraries-2017.csv")
+df2$logfare <- log(df$MARKET_FARE)
+ggplot(df2, aes(x=logfare))+geom_histogram()+xlab("AirFare") + ggtitle("Distribution of log(Airfare)")
+```
+
+# Methods
+
+We first looked at the bivariable associations between categorical variables and airfare measured by the MARKET_FARE variable. Those variables were quarter, state of origin, state of destination, whether the itinerary goes through non-contiguous domestic of contiguous domestic states denoted as ITIN_GEO_TYPE,  passengers and number of layovers. All categorical variables had non-normal distributions for each group and also didn't share equal variance for all groups. Due to these violations of assumptions necessary for performing one-way ANOVA test for comparing different means amongst multiple groups and two sample t-tests for comparing means of two groups, we used the Kruskal-Wallis rank sum test and Wilcoxon rank sum test instead. We also looked at bivariable associations between the only actual numerical variable (Market Distance) and airfare measured by the MARKET_FARE variable. We fitted a simple linear regression model (Airfare v.s. MARKET_DISTANCE) and tested the null hypothesis of whether the true slope of the simple linear line was equal to 0 to test the statistical significance of the relationship between airfare and the numerical variable. We used Cook's Distance to flag an outlier point. The threshold for flagging an outlier was any point that had a Cook's Distance of over 6.
+
+Next, we divided data into high airfare and low airfare itineraries. Our definition of high airfare itineraries was any itinerary that had airfares that are greater than the 3rd quartile value. We next performed t-tests of numerical variables on those two groups, namely the market distance, number of passengers who paid the same fare the same itinerary and the number of layovers. Since the distributions of all the numerical variables are not normal (right skewed) and the variances are not equal between the high-airfare and the low-airfare groups, we used the Wilcoxon rank sum test to make sure the results are the same with those of t-tests. 
+
+Finally, we made multiple multivariable models to examine impacts of certain variables on airfare while holding other variables constant. The first model included only the variables that showed statistically significant bivariable assocation with airfare. The second model included only the variables that were kept after applying the Akaike information criterion(AIC) on the first model. The third and final model included variables that were kept after applying AIC on the full model. We used both forward and backward selection. Overall, we conducted 2-tailed tests with $$P\leq.05$$ considered to be significant for statistical inference.
+
+# Results
+
+#### 1. Bivariable associations between observed characteristics and airfare
+
+**Quarter (QUARTER)**
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Airfare Distribution by quarter
+df %>% ggplot(aes(x=as.factor(QUARTER),y=MARKET_FARE)) + geom_boxplot()
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# One-way ANOVA test 
+summary(aov(MARKET_FARE ~ QUARTER, data= df))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Kruskal-Wallis rank sum test
+kruskal.test(MARKET_FARE ~ as.factor(QUARTER), data=df)
+```
+
+Both parametric(p-value = 0.3 > 0.05) and non-parametric tests(p-value = 0.9366 > 0.05) show there is not enough evidence to claim that there are statistically significant differences between itineraries in different quarters.
+
+**State of Origin (ORIGIN_STATE_ABR)**
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+# Airfare Distribution by State of origin
+df %>% ggplot(aes(x=as.factor(ORIGIN_STATE_ABR),y=MARKET_FARE)) + geom_boxplot() + coord_flip() + ylab("Airfare") + xlab("States of Origin") + ggtitle("Distribution of Airfares by States of Origin")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# One-way ANOVA test 
+summary(aov(MARKET_FARE ~ ORIGIN_STATE_ABR, data= df))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Kruskal-Wallis rank sum test
+kruskal.test(MARKET_FARE ~ as.factor(ORIGIN_STATE_ABR), data=df)
+```
+
+Both the one-way ANOVA test(p-value = 4.13e-12 < 0.05) and Kruskal-Wallis rank sum test (p-value = 0.01224 < 0.05) show there is sufficient evidence to claim that there are statistically significant differences between itineraries in different states of origin. In the boxplot above, itineraries that departed from Hawaii had much more expensive airfares. Hence, we performed Wilcoxon rank sum tests on different (HI, other State) combinations.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Make (HI, other State) combinations
+origin_state_pairs = lapply(unique(df$ORIGIN_STATE_ABR)[-12], function(i) df %>% filter(ORIGIN_STATE_ABR == i | ORIGIN_STATE_ABR == "HI"))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Index 1,8,9,10, 20 in unique(df$ORIGIN_STATE_ABR) have p-values lower than 0.05
+sapply(c(1:11), function(i) wilcox.test(MARKET_FARE ~ ORIGIN_STATE_ABR, data=data.frame(origin_state_pairs[i]))$p.value)
+sapply(c(12:39), function(i) wilcox.test(MARKET_FARE ~ ORIGIN_STATE_ABR, data=data.frame(origin_state_pairs[i]))$p.value)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# States of Origin that had statistically significant differences in mean airfare with "HI": "NY" "MA" "IL" "GA"
+unique(df$ORIGIN_STATE_ABR)[c(1,8,9,20)]
+```
+
+Itineraries that depart from Hawaii are more likely to have higher airfares on average than itineraries that depart from New York, Massachusetts, Illinois, Georgia.
+
+**States of Destination (DEST_STATE_ABR)**
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Airfare Distribution by State of destination
+df %>% ggplot(aes(x=as.factor(DEST_STATE_ABR),y=MARKET_FARE)) + geom_boxplot() + coord_flip() + xlab("States of Destination") + ylab("Airfare") + ggtitle("Distribution of Airfare for each State of Destination")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Kruskal-Wallis rank sum test test (because the assumptions for ANOVA test don't hold: unequal variances & non-normal distribution of airfare for each group)
+kruskal.test(MARKET_FARE ~ as.factor(DEST_STATE_ABR), data=df)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+dest_state_pairs = lapply(unique(df$DEST_STATE_ABR)[-22], function(i) df %>% filter(DEST_STATE_ABR == i | DEST_STATE_ABR == "OR"))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Index 7 is the only destination state in unique(df$DEST_STATE_ABR) have p-values lower than 0.05
+sapply(c(1:21), function(i) wilcox.test(MARKET_FARE ~ DEST_STATE_ABR, data=data.frame(dest_state_pairs[i]))$p.value)
+sapply(c(22:36), function(i) wilcox.test(MARKET_FARE ~ DEST_STATE_ABR, data=data.frame(dest_state_pairs[i]))$p.value)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# States of destination that had statistically significant differences in mean airfare with "OR": "FL""
+unique(df$DEST_STATE_ABR)[c(7)]
+```
+
+The Kruskal-Wallis rank sum test (p-value = 0.0001192 < 0.05) shows that there exists a relationship in which a certain group is more likely to have higher average airfare than some other group. Oregon had much higher mean airfare than other states. After performing Wilcoxon rank sum tests on every (Oregon, other State) combinations, Oregon and Florida was the only pair that had statistically significant difference. Thus, it follows that itineraries that arrive at Oregon are more likely to have higher airfares on average than itineraries that arrive at Florida.
+
+**Whether the itinerary goes through non-contiguous domestic of continguous domestic states (ITIN_GEO_TYPE)** 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Airfare Distribution by contiguous/non-contiguous domestic
+df %>% ggplot(aes(x=as.factor(ITIN_GEO_TYPE),y=MARKET_FARE)) + geom_boxplot() + xlab("Contiguous(2) or Non-continguous(1) Domestic States") + ylab("Airfare") + ggtitle("Distribution of Airfares by whether the state is contiguous or non-contiguous")
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Checking t-test assumptions (normality assumption): group2 right skewed (Not normal)
+ggplot(df, aes(MARKET_FARE)) + geom_histogram(fill = "white", color = "grey30") + facet_wrap(~ ITIN_GEO_TYPE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+wilcox.test(MARKET_FARE ~ ITIN_GEO_TYPE, data=df)
+```
+
+The Wilcoxon rank sum test shows that itineraries with contiguous domestic states are more likely to have more expensive average airfare than those with non-contiguous domestic states (p-value = 0.02035 < 0.05).
+
+**PASSENGERS**
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Airfare Distribution by number of passengers who paid the same forare the same itinerary during that quarter
+df %>% ggplot(aes(x=as.factor(PASSENGERS),y=MARKET_FARE)) + geom_boxplot()
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# non-parametric One-way ANOVA test (because the assumptions for ANOVA test don't hold)
+kruskal.test(MARKET_FARE ~ PASSENGERS, data=df)
+```
+
+The Wilcoxon rank sum test shows that itineraries with different numbers of passengers who paid the same amount of airfare for the same itinerary don't have statistically significant differences in average airfares (p-value = 0.06585 > 0.05).
+
+**Number of Layovers (numLayovers)**
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Airfare Distribution by number of layovers
+df %>% ggplot(aes(x=as.factor(numLayovers),y=MARKET_FARE)) + geom_boxplot() + xlab("# of Layovers") + ylab("Airfare") + ggtitle("Distribution of Airfares by # of Layovers")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Kruskal-Wallis rank sum test: non-parametric One-way ANOVA test (because the assumptions for ANOVA test don't hold)
+kruskal.test(MARKET_FARE ~ numLayovers, data=df)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Statistically significant result for all pairs (The higher the num of layovers, the more likely to have higher airfare)
+wilcox.test(MARKET_FARE ~ numLayovers, data=df %>% filter(numLayovers == 1 | numLayovers == 0) %>% select(numLayovers, MARKET_FARE))
+wilcox.test(MARKET_FARE ~ numLayovers, data=df %>% filter(numLayovers == 2 | numLayovers == 0) %>% select(numLayovers, MARKET_FARE))
+wilcox.test(MARKET_FARE ~ numLayovers, data=df %>% filter(numLayovers == 2 | numLayovers == 1) %>% select(numLayovers, MARKET_FARE))
+```
+
+The Kruskal-Wallis rank sum test shows that there exists a certain group that is more likely to have higher airfare, on average, than another group (p-value = 5.003e-08 < 0.05). After performing Wilcoxon rank sum tests on every pair of groups, we found out that on average, the higher the number of layovers is, the more likely the airfare is higher. (p-values for every pair : 2.228e-06, 0.000108, 0.01013 < 0.05)
+
+**Market Distance (MARKET_DISTANCE)**
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Scatterplot of MARKET_FARE v.s. MARKET_DISTANCE
+df %>% ggplot(aes(x=MARKET_DISTANCE,y=MARKET_FARE)) + geom_point() + geom_smooth() + xlab("Market Distance") + ylab("Airfare") + ggtitle("Scatterplot of Airfare v.s. Market Distance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Marking points that have Cook's Distance of over 6 with red labels
+cooksd <- cooks.distance(lm(MARKET_FARE ~ MARKET_DISTANCE, data = df))
+
+plot(cooksd, pch=".", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
+abline(h = 6 * mean(cooksd, na.rm=T), col="red")  # add cutoff line
+text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>6 * mean(cooksd, na.rm=T),names(cooksd),""), col="red")  # add labels
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+# Points that have cook's distance larger than 6
+influential <- as.numeric(names(cooksd)[(cooksd > 6 * mean(cooksd, na.rm=T))])
+df[influential, ]
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Exclude outlier point
+df <- df %>% filter(MARKET_FARE < 3000)
+df2 <- df2 %>% filter(MARKET_FARE < 3000)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Checking if there exists statistical significance in slope (Is positive correlation real?)
+summary(lm(MARKET_FARE ~ MARKET_DISTANCE, data = df))
+cor(df$MARKET_DISTANCE, df$MARKET_FARE)
+```
+We flagged one outlier point that had a Cook's Distance of over 6. Then, we fitted a simple linear regression model on Airfare v.s. Market Distance and found out that there exists a statistically significant relationship between airfare and market distance. That is, itineraries with longer market distances are more likely to have more expensive airfares in general (p-value = 1.41e-10 < 0.05). The correlation between Aifare v.s. Market Distance was. 0.3139932.
+
+#### 2. Comparison of Market Distance, Number of Passengers who paid the same fare for the same itinerary, and Number of Layovers between high airfare and low airfare itineraries
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Dividing data into high priced airfares and low priced airfares (Threshold: 3rd quartile value)
+thirdquartile <- summary(df$MARKET_FARE)[5]
+highprice <- df %>% filter(MARKET_FARE > thirdquartile)
+lowprice <- df %>% filter(MARKET_FARE <= thirdquartile)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Checking assumptions for t-test
+# Both distributions of market distance of highprice and lowprice groups right skewed + Variance of market distance different for two groups
+var(lowprice$MARKET_DISTANCE)
+var(highprice$MARKET_DISTANCE)
+
+highprice %>% ggplot(aes(MARKET_DISTANCE)) + geom_histogram() 
+lowprice %>% ggplot(aes(MARKET_DISTANCE)) + geom_histogram()
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Checking assumptions for t-test
+# Both distributions of passengers of highprice and lowprice groups right skewed + Variance of passengers different for two groups
+
+var(lowprice$PASSENGERS)
+var(highprice$PASSENGERS)
+
+highprice %>% ggplot(aes(PASSENGERS)) + geom_histogram() 
+lowprice %>% ggplot(aes(PASSENGERS)) + geom_histogram() 
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Checking assumptions for t-test
+# Both distributions of numLayovers of highprice and lowprice groups right skewed + Variance of numLayovers different for two groups
+var(lowprice$numLayovers)
+var(highprice$numLayovers)
+
+highprice %>% ggplot(aes(numLayovers)) + geom_histogram() 
+lowprice %>% ggplot(aes(numLayovers)) + geom_histogram() 
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+mean(lowprice$MARKET_DISTANCE) # 1102.452
+mean(highprice$MARKET_DISTANCE) # 1554.67
+
+mean(lowprice$PASSENGERS) # 2.675585
+mean(highprice$PASSENGERS) # 1.35
+
+mean(lowprice$numLayovers) # 0.3846154
+mean(highprice$numLayovers) # 0.63
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Performing both t-tests and Wilcoxon rank sum test to see if the results of both tests match
+t.test(lowprice$MARKET_DISTANCE, highprice$MARKET_DISTANCE, equal_var = FALSE)
+wilcox.test(lowprice$MARKET_DISTANCE,highprice$MARKET_DISTANCE)
+
+t.test(lowprice$PASSENGERS, highprice$PASSENGERS, equal_var = FALSE)
+wilcox.test(lowprice$PASSENGERS, highprice$PASSENGERS)
+
+t.test(highprice$numLayovers, lowprice$numLayovers, equal_var = FALSE)
+wilcox.test(highprice$numLayovers, lowprice$numLayovers)
+```
+
+After performing both t-tests and Wilcoxon rank sum tests on three variables(MARKET_DISTANCE, PASSENGERS, numLayovers) between high priced itineraries and low priced itineraries, we found out:
+
+  1.  High priced itineraries were more likely to have longer market distances than low priced itineraries (p-value for t-test, Wilcoxon rank sum test = 5.569e-05, 9.916e-05 < 0.05).  
+  2.  High priced itineraries were less likely to have more passengers who paid the same fare for the same itinerary (p-value for t-test, Wilcoxon rank sum test = 0.0002009, 0.002752 < 0.05).  
+  3.  High priced itineraries were more likely to have more layovers than low priced ones (p-value for t-test, Wilcoxon rank sum test = 0.0004624, 0.0002693 < 0.05).  
+
+#### 3. Multivariable Models
+
+```{r include=FALSE, paged.print=FALSE}
+# Model 1: Model which included only the variables that had at least one pair of groups that had statistically significant differences in mean airfare
+summary(lm(MARKET_FARE ~ DEST_STATE_ABR + ORIGIN_STATE_ABR + numLayovers + as.factor(ITIN_GEO_TYPE), data=df))
+```
+
+In the first model (MARKET_FARE ~ DEST_STATE_ABR + ORIGIN_STATE_ABR + numLayovers + ITIN_GEO_TYPE), holding other variables constant, one additional layover corresponds to $42.5417 increase in expected airfares.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# AIC on Model 1
+library(MASS)
+stepAIC(lm(MARKET_FARE ~ DEST_STATE_ABR + ORIGIN_STATE_ABR + numLayovers + as.factor(ITIN_GEO_TYPE), data=df), direction="both", trace=FALSE)$anova
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Model 2 (Model after AIC on Model 1): MARKET_FARE ~ numLayovers + ITIN_GEO_TYPE
+summary(lm(MARKET_FARE ~ numLayovers + as.factor(ITIN_GEO_TYPE), data=df))
+```
+
+In the second model (MARKET_FARE ~ numLayovers + ITIN_GEO_TYPE), holding other variables constant, one additional layover corresponds to $76.45 increase in expected airfares.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# AIC on level-level full model
+fit <- lm(MARKET_FARE ~ . , data=df)
+step <- stepAIC(fit, direction="both", trace=FALSE)
+step$anova
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# AIC on log-level full model
+full.model <- lm(log(MARKET_FARE) ~ . , data=df)
+step.model <- stepAIC(full.model, direction = "both", trace = FALSE)
+step.model$anova
+```
+
+For both the level-level and log-level models, the final model includes predictor variables were QUARTER, AIRPORT_GROUP, OP_CARRIER_GROUP and PASSENGERS. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Model 3 : MARKET_FARE ~ QUARTER + AIRPORT_GROUP + OP_CARRIER_GROUP + PASSENGERS
+# Confidence Interval of slope coefficients of Model 3
+confint(lm(MARKET_FARE ~ QUARTER + AIRPORT_GROUP + OP_CARRIER_GROUP + PASSENGERS, data=df))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Model 3 : MARKET_FARE ~ QUARTER + AIRPORT_GROUP + OP_CARRIER_GROUP + PASSENGERS
+# Slope coefficient estimates of Model 3 and their p-values
+summary(lm(MARKET_FARE ~ QUARTER + AIRPORT_GROUP + OP_CARRIER_GROUP + PASSENGERS, data=df))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Another log-level Model with just the numerical variables: log(MARKET_FARE) ~ PASSENGERS + MARKET_DISTANCE + numLayovers
+summary(lm(log(MARKET_FARE) ~ PASSENGERS + MARKET_DISTANCE + numLayovers, data=df))
+```
+
+In model 3 (MARKET_FARE ~ QUARTER + AIRPORT_GROUP + OP_CARRIER_GROUP + PASSENGERS), the 95% confidence interval of the slope coefficient for the number of passengers who paid the same fare for the same itinerary was (-12.446624, -2.043813). Hence, we are 95% confident that one additional increase in the number of passengers who paid the same fare for the same itinerary corresponds to some decrease in expected airfare. Also, the 95% confidence interval of the slope coefficient for Delta Airlines was (79.873861, 351.990593). Hence, we are 95% confident that average airfare of Delta Airlines is more expensive than average non-Delta Airline airfares. As for airports in the itineraries, we discovered that itineraries that go through the following combinations of airports (BGM:DTW:MYR, JFK:ORD:STL, SEA:JNU:FAI, HOU:MDW:BUF) have higher airfares on average than the rest of the itineraries with different airport combinations by 1012.186 dollars, 1004.550 dollars, 572.092 dollars, 750.186 dollars respectively.
+
+# Discussion
+
+It is interesting to note that the one outlier point we flagged with considerably higher airfares than other data points has all the characteristics that are associated with high airfares. This itinerary departs from Hawaii and this matches with our findings that itineraries that depart from Hawaii are more likely to have higher airfares on average than itineraries that depart from New York, Massachusetts, Illinois and Georgia. Also, this itinerary has two layovers and uses Delta Airlines for two of the flights. This corresponds to our findings that additional layovers are associated with higher average airfares and that average airfare of Delta Airlines is more likely to be expensive than average non-Delta Airline airfares.
+
+We wanted to point out why we think certain variables were omitted after stepwise AIC. We originally began by looking at the bivariate associations between observed characteristics and airfare. We were able to find statistically significant airfare changes for state of origin, state of destination, contiguous vs. non-contiguous, number of layovers, and market distance. However, when we used AIC on level-level full model and the log-level full model, variables about state of origin, state of destination, and contiguous vs. non-contiguous were omitted. So why weren't state of origin, state of destination, and contiguous vs. non-contiguous included? We believe that this is largely due to high multicollineraity between these variables and ones included in the model. The change in price that is capture by both state of origin, state of destination, and contiguous vs. non-contiguous is also largely captured in the much simpler variable market distance. However, while number of layovers and distance are also both corrleated, number of layovers is able to capture a piece of the ticket price in a way that is not captured by market distance, unlike state of origin, state of destination, and contiguous vs. non-contiguous.
+
+Limitation of this project is that the conclusions may not be applicable to all other itineraries because all the itineraries in the data used here involve a New York airport and may not be representative of a general itinerary. Also, we believe that room for improvement exists in that we could have used the root-mean-square error(RMSE) method or the maximum likelihood method to choose only one best model and draw conclusions from it instead of drawing conclusions from multiple models.
+
+# Conclusion
+
+What are factors that are associated with high airfares? High priced itineraries were more likely to have longer market distances, less likely to have more passengers who paid the same fare for the same itinerary and more likely to have larger number of layovers than than low priced itineraries. We also discovered that itineraries with contiguous domestic states, more layovers and longer market distance are more likely to have more expensive average airfares. 
+
+Using the stepwise multivariable model for airfare and log airfare, we observed that not all variables were major factors of airfare. After using AIC to omit some variables, our models did not include all of the variables. For example, in the log(MARKET_FARE) ~ PASSENGERS + MARKET_DISTANCE + numLayovers model, We can see from the regression model that a one person increase in passengers is associated with a -1.670e-02 increase in expected log fare, a one mile increase in market distance is associated with a 2.268e-04 increase in expected log fare, and each layover is associated with a 1.702e-01 increase in expected log fare. Thus, in the end, it came down to simply a few key characterists to largely determine the price of a plane ticket.
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(dplyr)
+library(qwraps2)
+options(qwraps2_markup = "markdown")
+our_summary1 <-
+  list("Passengers" =
+       list("Min" = ~ min(PASSENGERS),
+            "Max" = ~ max(PASSENGERS),
+            "Mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(PASSENGERS,qdist=stats::qt,qdist.args = list(df = 399)))),
+       "Market Fare" =
+       list("Min" = ~ min(MARKET_FARE),
+            "Max" = ~ max(MARKET_FARE),
+             "Mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(MARKET_FARE,qdist=stats::qt,qdist.args = list(df = 399)))),
+       "Market Distance (miles)" =
+       list("Min" = ~ min(MARKET_DISTANCE),
+            "Max" = ~ max(MARKET_DISTANCE),
+            "Mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(MARKET_DISTANCE,qdist=stats::qt,qdist.args = list(df = 399)))),
+       "Quarter" =
+       list("Jan-March (%)" = ~ qwraps2::n_perc0(QUARTER == 1),
+            "Apr-June (%)"  = ~ qwraps2::n_perc0(QUARTER == 2),
+            "Jul-Sep (%)"  = ~ qwraps2::n_perc0(QUARTER == 3),
+            "Oct-Dec (%)"  = ~ qwraps2::n_perc0(QUARTER == 4)),
+       "Number of Layovers" = 
+       list("Min" = ~min(numLayovers),
+            "Max" = ~max(numLayovers),
+            "Mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(numLayovers,qdist=stats::qt,qdist.args = list(df = 399)))))
+print(summary_table(df, our_summary1),
+      rtitle = "Summary Statistics",
+      cnames = c("All Data (N=400)"))
+table <- summary_table(df, our_summary1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+thirdquartile <- summary(df$MARKET_FARE)[5]
+highprice <- df %>% filter(MARKET_FARE > thirdquartile)
+lowprice <- df %>% filter(MARKET_FARE <= thirdquartile)
+
+df$highcost <- ifelse(df$MARKET_FARE >=thirdquartile, 1, 0)
+whole <- summary_table(df, our_summary1)
+grouped <- summary_table(dplyr::group_by(df, highcost), our_summary1)
+both <- cbind(whole, grouped)
+pvals <-
+  list(t.test(highprice$PASSENGERS-lowprice$PASSENGERS)$p.value,
+t.test(highprice$MARKET_FARE-lowprice$MARKET_FARE)$p.value,
+t.test(highprice$MARKET_DISTANCE-lowprice$MARKET_DISTANCE)$p.value,
+t.test(highprice$numLayovers-lowprice$numLayovers)$p.value) %>% 
+  lapply(frmtp) %>%
+  do.call(c, .)
+both <- cbind(both, "P-value" = "")
+both[grepl("Mean \\(95% CI\\)", rownames(both)), "P-value"] <- pvals
+print(both,
+      rtitle="Summary Statistics",
+      cnames = c("Entire Data (N=400)", "Low Airfare (N=300)", "High Airfare (N=100)", "P-Value"))
+```
+
+
+# Appendix
+
+Kruskal-Wallis rank sum test and the Wilcoxon rank sum test are non-parametric versions of the one-way ANOVA test and two-sample t-test. We used this test because assumptions for one-way ANOVA and t-tests were violated. These tests don¡¯t assume  normal distribution of the residuals. To put it simply, these tests assign numeric ranks to all the observations and uses those ranks to determine whether there are evidence of stochastic dominance between the samples.
+
+
+
+
+
