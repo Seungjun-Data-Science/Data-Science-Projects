@@ -1,0 +1,174 @@
+---
+title: "Among the Approved Loans, How Do Different Variables Influence Loans To Be Bad?"
+author: "Seungjun (Josh) Kim"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Read in Approved Loan Data
+df_approved = read_csv("E:/josh_data_science/Lending Club Loan Data/approved_loan_data_ver3.csv")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Taking out the % sign at the end of each interest rate and changing datatype from string to float
+df_approved$int_rate <- substr(df_approved$int_rate,1, nchar(df_approved$int_rate)-1)
+df_approved$int_rate <- as.numeric(df_approved$int_rate)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Creating new variable lstatus with only two categories: bad loans(late, charged off, default) and not bad loans
+
+bad_indicators <- c("Charged Off ",
+                    "Default",
+                    "Does not meet the credit policy. Status:Charged Off",
+                    "Default Receiver", 
+                    "Late (16-30 days)",
+                    "Late (31-120 days)")
+
+# lstatus = 1 if loan is bad ; lstatus = 0 if loan is not bad
+df_approved$lstatus <- ifelse(df_approved$loan_status %in% bad_indicators, 1,
+                          ifelse(df_approved$loan_status=="", NA, 0)
+                          )
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Which variables are influential in determining which loans are bad or not? - Baseline Logistic Regression Model
+base.logistic.model = glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +num_actv_bc_tl+num_bc_sats+
+      num_sats+pub_rec+pub_rec_bankruptcies, data=df_approved, family='binomial')
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+baseline_model_coefficients = merge(data.frame(coef(base.logistic.model)), data.frame(exp(coef(base.logistic.model))), by=0)
+
+colnames(baseline_model_coefficients) = c('Baseline Model Variable Names', 'Baseline Model Estimated Coefficients', 'Baseline Model Odds Ratio')
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Which variables are influential in determining which loans are bad or not? - 2nd Logistic Regression Model after omitting multicollinear variables
+second.logistic.model <- glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +
+      num_sats+pub_rec+pub_rec_bankruptcies, data=df_approved, family='binomial')
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+second_model_coefficients = merge(data.frame(coef(second.logistic.model)), data.frame(exp(coef(second.logistic.model))), by=0)
+
+colnames(second_model_coefficients) = c('Model 2 Variable Names', 'Model 2 Estimated Coefficients', 'Model 2 Odds Ratio')
+```
+
+# Abstract
+
+Loans are important because people use them to finance their college education, make major purchases, and buy new houses or cars. Although many economics literature touched on topics such as the impact of macroeconomic policies on loans, they rarely focused on how loans are paid back. In particular, I shed light to the fact that not all loans are paid back on time or fully. This paper examines how different predictor variables influence whether the applied loan becomes bad or not. “Bad Loans” are defined as loans are that are paid off late, charged off or defaulted.
+
+To tackle this question, I used data from the Lending Club, a peer-to-peer company that connects investors to borrowers. After some exploratory data analysis, I found out that almost 50% of the people who applied for loans through Lending Club mostly did not possess their own houses although they have worked for 7 or more years. Next, I used two logistic regression models to analyze the data. The first model includes 12 predictor variables and the second model includes only 10 predictor variables in which two of them were omitted after checking for multicollinearity. The model results showed that higher interest rates, debt to income ratio and number of derogatory public records increase the odds of becoming bad loans while higher average current balance, employment length, and number of satisfactory bankcard accounts decreased the odds of becoming bad loans. Overall, the analysis shows the possible vicious cycle that borrowers may fall into.
+
+# Introduction
+
+Loans are important in many people's lives. People finance their college education, buy new cars and houses, and make major purchases with loans. Thus, understanding how loans are influenced by various factors is of interest for both borrowers and lenders. But they 
+
+Previous economics literature touched on topics such as impact of monetary policy on credit supply and loan applications (Jiménez, 2012), how monetary policy affects loans supply and demand through the desposits channel (Drechsler, 2017) and the impact of credit expansions on borrowers' propensity to borrow loans and the propoensity of banks to lend to borrowers (Agarwal, 2016). However, not many previous literature focused on how loans are paid back. In particular, I paid attention to the fact that not all loans are paid back on time or fully. Some borrowers pay back their loans late, default or are charged off. From the standpoint of a bank or financial institution that lends out loans, these kinds of borrowers are not desirable. This led me to my research question - What makes a loan bad? What variables determine whether a loan will go bad or not? In this case, I defined "bad loans" to be loans that are paid back late, defaulted or charged off.
+
+# Methods
+
+In order to tackle my research question, I collected data from a private lending company called "Lending Club" based on San Franciso, California. In a nutshell, it plays the role of an intermediary that connects investors to borrowers who are in need of money. The publicly available datasets on the Lending Club website are comprised of two parts: the approved loans data and the declined loans data. Each had about 2 million and 22 million observations respectively. In this analysis, I used only the approved loans data which had 2,004,091 observations and 145 variables. Each observation in the data corresponds to unique individuals who applied for loans through the Lending Club. The variables include numerical variables such as annual income, debt-to-income ratio of the loan applicant and categorical variables such as years of unemployment, home ownership status of the loan applicant.
+
+For data cleaning, I used Python's Pandas framework to perform the task. After removing some duplicate observations that were created due to data entry errors, I got 1,879,245 observations for the approved loans data. Also, I manually selected 27 variables that repeatedly appeared in many literature related to loan applications (Jiménez, 2012) (Drechsler, 2017) (Agarwal, 2016).
+
+I first performed Exploratory Data Analysis(EDA) to have a better understanding of the data. EDA is divided into three parts: Univariate Analysis, Geographical Analysis and Bivrariate Analysis. 
+
+For the univariate analysis, I used boxplots for categorical variables and histograms for continuous variables. For text data, I visualized it with wordcloud with words that appeared more frequently having larger size in the cloud. 
+
+For the geographical analysis, I used 50 State Heatmap to examine the total amount of loans that have been applied for the past 11 years by State and average income for the past 11 years by State. States with higher values were marked with darker colors on the map. 
+
+For the bivariate analysis, I visualized the relationship between Requested Loan Amount v.s. Loan Status, Requested Loan Amount v.s. Loan Status(Not Bad v.s. Bad), Average current balance of all accounts v.s. Loan Staus(Not Bad v.s. Bad Loans), Interest Rate v.s. Grade, Applied Loan Amount v.s. Home Ownership, Loan Status v.s. Proportion by Grade, Loan Status Proportions v.s. Employment Length, Purpose of Loans v.s. Percentage of Charged Off Loans, Purpose of Loans v.s. Percentage of Fully Paid Loans, Applied Loan Amount v.s. Annual Income, Applied Loan Amount v.s. Purpose of Loan, and Average Interest Rate for Loans v.s. time. I used stacked bar and mosaic plots for two categorical variables, scatter plot for two continuous variables and boxplots for continuous v.s. categorical variables. For the continuous v.s. categorical case, I performed both the t-test and the Wilcoxon rank sum test to see if the difference in value of the continuous variable between groups is statistically significant. For the two categorical variables case, I used the Chi-Squared test. The significance level was at the 5% level.
+
+Next, I fitted a baseline Logistic Regression Model on 12 variables with the outcome variable being whether the applied loan is a bad loan(=1) or not(=0). Assumptions for logistic regression model were all met. First, observations were all independent because a borrower's financial indicators cannot influence those of other borrowers. Second, the outcome variable is binary and is not ordinal. Third, the logit of the probability of a loan being bad is linear with the predictor variables.
+
+Moreover, I fitted a second Logistic Regression Model that had only 10 variables with 2 variables (num_actv_bc_tl: Number of currently active bankcard accounts, num_bc_sats: Number of satisfactory bankcard accounts) omitted from the baseline model. The reason why those 2 variables were omitted was because the variation in those variables was significantly explained by the other numerical variables combined. More specifically, 71% of the variation in the number of currently active bankcard accounts was explained by other numerical variables combined and 41% of variation in Number of satisfactory bankcard accounts was explained by other numerical variables combined after dropping num_actv_bc_tl. This process allowed me to address potential multicollinearity issues in the model. I used the ROC Curve to compare the two Logistic Regression Models. 
+
+# Results
+
+Among the continous variables, the grade/subgrade,in particular, was very right skewed with majority of the people concentrated on the higher credit grades (A,B,C). The summary statistics of continous variables in the data are the following:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(expss)
+
+# Summary Statistics for Continous Variables
+df_approved %>% 
+  tab_cells(loan_amnt, dti, annual_inc, avg_cur_bal, int_rate, num_actv_bc_tl, num_bc_sats, num_sats, pub_rec_bankruptcies) %>%
+    tab_stat_fun("Mean" = w_mean, "Median" = w_median, "Max" = w_max, "Min" = w_min, "Std. dev." = w_sd, "Non-null N" = w_n, method = list) %>%
+    tab_pivot()
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Percentage Proportion of each employment Length Category (10+ years: 35.5%)
+table(df_approved$emp_length) * 100 / sum(table(df_approved$emp_length))
+```
+
+Among the categorical variables, home ownership and employment length were worth noting. 90% of the borrowers who applied loans through Lending Club didn't have their own house. They either used mortgage to buy houses or relied on rent. The bar plot for employment length showed the group that had the highest proportion (35.5%) was applicants who worked 10 or more years. Also, the wordcloud for loan title variable showed that debt consolidation and refinancing were the most common reasons people apply for loans through the Lending Club.
+
+Geographical Analysis showed that applicants from States like California, Texas, New York, Florida and Pennsylvania had the highest total amount of loans applied and those applicants also tended to have the highest average income. This result aligned well with the relationship between applied loan amount and annual income. The scatter plot of applied loan amount v.s. annual income displayed some linear relationship and when simple linear regression was fitted onto the data points, estimated coefficient (0.0145, p-value < 2.2e-16) was statistically significant.
+
+Comparison of applied loans amount and average current balance of all accounts between the two groups by loan status (bad loan v.s. not bad loan) showed that bad loan applicants tended to have applied for larger amounts of loans (p-value < 2.2e-16) and have lower average amount of money in their bank accounts (p-value < 2.2e-16).
+
+Investigation on the relationship between credit grade and interest rate showed that higher interest rate was assigned to applicants with worse credit grades and the results were statistically significant (p-value < 2.2e-16). Also, the changes in average interest rate by grade over time indicated that the Lending Club has been assigning higher interest rates to applicants who have bad credit grades (E,F,G) while assigning pretty consistenty interest rates to applicants who have decent credit grades (A,B,C). These results can be noted in the plots below.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Interest Rate v.s. Grade
+ggplot(df_approved , aes(x = grade , y = int_rate , fill = grade)) + 
+        geom_boxplot() + 
+        labs(y = 'Interest Rate' , x = 'Grade')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Average Interest Rate by Grade over time
+df_approved %>%select(issue_d_year,grade,int_rate)%>%group_by(issue_d_year,grade)%>%summarise(avg_intrate=mean(int_rate))%>%
+  ggplot(aes(x=issue_d_year,y=avg_intrate,group=grade,col=grade))+geom_line(size=1.5)+labs(x="Year",y="Avg Interest Rate",title="Average Interest Rate for Loans")
+```
+
+The following two tables are the estimated coefficients and odds ratio for the two Logistic Regression Models.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Baseline Model Coefficients and Odds Ratio
+baseline_model_coefficients
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Second Model Coefficients and Odds Ratio
+second_model_coefficients
+```
+
+In the baseline model, average current balance, employment length, number of satisfactory bankcard accounts had negative estimated coefficients. In other words, a loan applicant A is less likely to become a bad borrower than loan applicant B if A has more money in his or her bank account, has more work experience and has higher number of satisfactory bankcard accounts than B. 
+
+On the other hand, interest rate assigned to the loan, applied loan amount, debt to income ratio, number of currently active bankcard accounts, number of satisfactory accounts, number of derogatory public records, and number of public record bankruptcies had positive estimated coefficients. In other words, a loan applicant A is more likely to become a bad borrower than loan applicant B if A was assigned with higher interest rate, has more currently active bankcard accounts, has higher number of satisfactory accounts, derogatory public records, debt to income ratio and public record bankruptcies than B. 
+
+For Grade/Subgrade variable, the odds ratio of A1, the highest credit score group, to other groups was larger than 1. But this odds ratio constantly decreased as the credit grade became worse and eventually went below 1 at grade D4. In other words, loan applicants who received a credit grade from A1 to D3 were more likely to become a bad borrower if they received worse credit grades than others while loan applicants who received a credit grade from D4 or worse were more less to become a bad borrower if they received worse credit grades than others. 
+
+In the second model, there were no estimated coefficient values that were grossly different from those from the baseline model (e.g. The sign of the coefficient has changed). Both models had the same value for the area under the ROC curve and the ROC curves were similar.
+
+# Discussion
+
+It is worth noting to see from the Exploratory Data Analysis that a lot of people who applied for loans, despite working for 10 or more years (35.5%), did not own their house (90%). Ironically, majority of borrowers were not even taking out loans to purchase their own houses. Most of them were gettings loans for debt consolidation and refinancing which means they are getting new loans to pay off their old loans. I believe this reflects the harsh reality of how difficult it is to purchase "my house" even after working for years. A lot of people are caught up in this vicious cycle of taking out loans to pay off their debt. In this financial strain, there is no room for them to even think about purchasing their own houses. Moreover, it was interesting to see how people with bad credit scores are assigned with higher interest rates and have to make higher interest payments. This phenomenon matches with current bank practices in which banks charge higher interest rates to riskier loans to leverage risk.
+
+The estimated coefficients from both logistic regression models matched with previous literature and expectations. For example, it was expected that applicants with longer employment lengths are less likely to become bad applicants because they are usually in higher ranking positions with higher salaries and thus able to fully pay back loans on time.One interesting variable was grade/subgrade because the estimated coefficient remained positive until grade D3 and turned negative starting from grade D4. One possible explanation is that applicants who are in the lower grade stratum are psychologically constrained, cannot afford to receive any worse credit scores and thus are more desperate to pay back loans on time than applicants in the good credit grade stratum.
+
+Despite some insights drawn from this analysis, this project has two major limitations. First, the conclusions may not be generalizable to the overall borrowers and lenders because the loan data used is from one private lending company that is not even a bank and thus may not be representative of the overall borrower population. Second, information about when (Year and Month) the loan was applied for was not accounted for in the analysis. It is likely that borrowers who applied at different time period might display different behavior (e.g. Applicants who applied at a certain time period are more likely to be charged off.) and failture to have taken into consideration the seasonality associated with time might have biased the results.
+
+# Conclusion
+
+Analysis on Lending Club data shows the vicious cyle of debt that borrowers can be trapped in. Imagine person X who announced default on loans or got charged off. X's credit scores will be lowered down and this will lead to higher interest rates assigned to X's future loans. To pay off higher interest payments, X will need larger amounts of loans and will increase X's odds of getting defaulted, charged off or paying back loans late. X defaults again and the vicious cycle continues. This project sends a message to people that healthy financial habits including regular saving and not getting risk loans (e.g. filling 80% of required amount of money to purchase a house with loans and using own assets to pay for the remaining 20%) is important so as to not become a bad loan applicant.
+
+# References
+
+Jiménez, G., Ongena, S., Peydró, J., & Saurina, J. (2012). Credit Supply and Monetary Policy: Identifying the Bank Balance-Sheet Channel with Loan Applications. American Economic Review
+
+Drechsler I., Savov A., Schnabl P. (2017). The Deposits Channel of Monetary Policy. The National Bureau of Economic Research.
+
+Agarwal S., Chomsisengphet S., Mahoney N., Stroebel J. (2016). Do Banks Pass Through Credit Expansions To Consumers Who Want To Borrow?
+
+<style> p {line-height: 2em;} </style>

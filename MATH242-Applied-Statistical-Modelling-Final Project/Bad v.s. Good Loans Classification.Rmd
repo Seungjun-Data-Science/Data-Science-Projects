@@ -1,0 +1,210 @@
+---
+title: "Bad v.s. Good Loans"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Import Essential Libraries
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+```
+
+# Read in Data and Preliminary Work before Analysis
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Read in Approved Loan Data
+df_approved = read_csv("E:/josh_data_science/Lending Club Loan Data/approved_loan_data_ver3.csv")
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Taking out the % sign at the end of each interest rate and changing datatype from string to float
+df_approved$int_rate <- substr(df_approved$int_rate,1, nchar(df_approved$int_rate)-1)
+df_approved$int_rate <- as.numeric(df_approved$int_rate)
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Creating new variable lstatus with only two categories: bad loans(late, charged off, default) and not bad loans
+
+bad_indicators <- c("Charged Off ",
+                    "Default",
+                    "Does not meet the credit policy. Status:Charged Off",
+                    "Default Receiver", 
+                    "Late (16-30 days)",
+                    "Late (31-120 days)")
+
+# lstatus = 1 if loan is bad ; lstatus = 0 if loan is not bad
+df_approved$lstatus <- ifelse(df_approved$loan_status %in% bad_indicators, 1,
+                          ifelse(df_approved$loan_status=="", NA, 0)
+                          )
+```
+
+# Checking for Multicollinearity amongst numerical variables
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# How much variation in Applied Loan Amount is explained by other numerical variables combined? (R Squared: 15%)
+summary(lm(loan_amnt ~ dti + annual_inc + avg_cur_bal + int_rate + num_actv_bc_tl + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in debt to income ratio is explained by other numerical variables combined? (R Squared: 10%)
+summary(lm(dti ~  loan_amnt + annual_inc + avg_cur_bal + int_rate + num_actv_bc_tl + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in Annual Income is explained by other numerical variables combined? (R Squared: 7%)
+summary(lm(annual_inc ~  loan_amnt + dti + avg_cur_bal + int_rate + num_actv_bc_tl + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in Average Current Balance of all accounts is explained by other numerical variables combined? (R Squared: 12%)
+summary(lm(avg_cur_bal ~  loan_amnt + dti + annual_inc +int_rate + num_actv_bc_tl + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in Interest Rates is explained by other numerical variables combined? (R Squared: 7%)
+summary(lm(int_rate ~  loan_amnt + dti + annual_inc + avg_cur_bal + num_actv_bc_tl + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in Number of currently active bankcard accounts is explained by other numerical variables combined? (R Squared: 71%)
+summary(lm(num_actv_bc_tl ~  loan_amnt + dti + annual_inc + avg_cur_bal + int_rate + num_bc_sats + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+71% of the variation in Number of currently active bankcard accounts is explained by other numerical variables combined which means Number of currently active bankcard accounts variable is highly correlated with other variables combined. I will drop this variable.
+
+```{r}
+# How much variation in Number of satisfactory bankcard accounts is explained by other numerical variables combined after dropping num_actv_bc_tl? (R Squared: 41%)
+summary(lm(num_bc_sats ~  loan_amnt + dti + annual_inc + int_rate + avg_cur_bal + num_sats + pub_rec_bankruptcies, data=df_approved))
+```
+
+41% of variation in Number of satisfactory bankcard accounts is explained by other numerical variables combined after dropping num_actv_bc_tl which means Number of satisfactory bankcard accounts variable is highly correlated witht other variables combined. I will drop this variable.
+
+```{r}
+# How much variation in Number of satisfactory bankcard accounts is explained by other numerical variables combined after dropping num_actv_bc_tl and num_bc_sats? (R Squared: 11%)
+summary(lm(num_sats ~  loan_amnt + dti + annual_inc + int_rate + avg_cur_bal + pub_rec_bankruptcies, data=df_approved))
+```
+
+```{r}
+# How much variation in Number of public record bankruptcies is explained by other numerical variables combined after dropping num_actv_bc_tl and num_bc_sats? (R Squared: 1%)
+summary(lm(pub_rec_bankruptcies ~  loan_amnt + dti + annual_inc  + int_rate + avg_cur_bal + num_sats, data=df_approved))
+```
+
+Based on this multicollinearity, I will drop num_actv_bc_tl and num_bc_sats from the baseline logistic regression model for my 2nd model.
+
+# Which variables are influential in determining which loans are bad or not? - Logistic Regression Model
+
+```{r}
+# Baseline Logistic Regression Model (12 Predictor Variables)
+base.logistic.model = glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +num_actv_bc_tl+num_bc_sats+
+      num_sats+pub_rec+pub_rec_bankruptcies, data=df_approved, family='binomial')
+```
+
+```{r}
+# Summary of baseline model results
+summary(base.logistic.model)
+```
+
+```{r}
+# Merge baseline model coefficients and baseline model exponentiated coefficients into one
+baseline_model_coefficients = merge(data.frame(coef(base.logistic.model)), data.frame(exp(coef(base.logistic.model))), by=0)
+
+colnames(baseline_model_coefficients) = c('Baseline Model Variable Names', 'Baseline Model Estimated Coefficients', 'Baseline Model Odds Ratio')
+```
+
+```{r}
+baseline_model_coefficients
+```
+
+# Which variables are influential in determining which loans are bad or not? - 2nd Logistic Regression Model after omitting multicollinear variables
+
+```{r}
+# Second Logistic Regression Model (10 Predictor Variables: 2 omitted due to multicollinearity)
+
+second.logistic.model <- glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +
+      num_sats+pub_rec+pub_rec_bankruptcies, data=df_approved, family='binomial')
+```
+
+```{r}
+# Summary of second model results
+summary(second.logistic.model)
+```
+
+```{r}
+# Merging second model coefficients and second model exponentiated coefficients
+second_model_coefficients = merge(data.frame(coef(second.logistic.model)), data.frame(exp(coef(second.logistic.model))), by=0)
+
+colnames(second_model_coefficients) = c('Model 2 Variable Names', 'Model 2 Estimated Coefficients', 'Model 2 Odds Ratio')
+```
+
+```{r}
+second_model_coefficients
+```
+
+# Model Comparison
+
+### Baseline Logistic Regression Model Validation
+```{r}
+# Split dataset (75% Training Set, 25% Testing Set)
+idx = sample(dim(df_approved)[1] , 0.75*dim(df_approved)[1] , replace = F)
+trainset = df_approved[idx , ]
+testset = df_approved[-idx , ]
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Fit Baseline logistic regression
+base.logistic.model.train = glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +num_actv_bc_tl+num_bc_sats+
+      num_sats+pub_rec+pub_rec_bankruptcies, data=trainset, family='binomial')
+```
+
+```{r}
+# Prediction on test set
+preds1 = predict(base.logistic.model.train , testset , type = 'response')
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(pROC)
+
+# Area Under Curve
+auc(roc(testset$lstatus , preds1))
+```
+
+```{r}
+plot.roc(testset$lstatus , preds1 , main = "Confidence interval of a threshold" , percent = TRUE , 
+         ci = TRUE , of = "thresholds" , thresholds = "best" , print.thres = "best" , col = 'blue')
+```
+
+### Second Logistic Regression Model Validation
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+second.logistic.model.train <- glm(lstatus ~ loan_amnt + sub_grade + dti + emp_length + annual_inc + avg_cur_bal +home_ownership +int_rate +
+      num_sats+pub_rec+pub_rec_bankruptcies, data=trainset, family='binomial')
+```
+
+```{r}
+# Prediction on test set
+preds2 = predict(second.logistic.model.train , testset , type = 'response')
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Area Under Curve
+auc(roc(testset$lstatus , preds2))
+```
+
+```{r}
+plot.roc(testset$lstatus , preds2 , main = "Confidence interval of a threshold" , percent = TRUE , 
+         ci = TRUE , of = "thresholds" , thresholds = "best" , print.thres = "best" , col = 'blue')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

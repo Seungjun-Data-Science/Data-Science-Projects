@@ -1,0 +1,410 @@
+---
+title: "Exploratory Data Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+# Import Essential Libraries
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(DescTools)
+```
+
+# Univariate EDA
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Read in Approved Loan Data
+df_approved = read_csv("E:/josh_data_science/Lending Club Loan Data/approved_loan_data_ver3.csv")
+```
+
+### Requested Loan Amount
+```{r}
+Desc(df_approved['loan_amnt'], main = "Loan amount distribution for Approved Loans", plotit = TRUE)
+```
+
+### Grade/Subgrade
+```{r}
+ggplot(df_approved,aes(x=sub_grade)) + geom_bar(stat='count')
+```
+
+### Loan Status
+
+```{r}
+Desc(df_approved$loan_status, main= "Loan Status Distribution in approved loans", plotit = T)
+```
+
+### Debt to Income Ratio (DTI)
+```{r}
+Desc(df_approved['dti'], main = "Debt to Income Ratio distribution for Approved Loans", plotit = TRUE)
+```
+
+### home_ownership
+```{r}
+df_approved %>% group_by(home_ownership) %>% dplyr::summarise(count=n()) %>% 
+mutate(pct=count*100/sum(count))%>% 
+  ggplot(aes(x = reorder(home_ownership, -pct), y = pct)) + geom_bar(stat = "identity", fill = 'lightblue',aes(color = I('black')), size = 0.1) + 
+xlab("Home Ownership") + ylab("Percent")
+```
+
+### Annual_inc
+```{r}
+Desc(df_approved['annual_inc'], main = "Annual Income Distribution of Approved Loans", plotit = TRUE)
+```
+
+### Employment Length
+```{r}
+ggplot(df_approved,aes(x=emp_length,fill=emp_length))+geom_bar(stat="count")+labs(x="Employment Length",title="Distribution of Employment Length")
+```
+
+### Loan Descriptions
+```{r}
+charged_off_df = df_approved %>% filter(loan_status=='Charged Off')
+late_df = df_approved %>% filter(loan_status=='Late (16-30 days)' | loan_status=='Late (31-120 days)')
+fully_paid_df = df_approved %>% filter(loan_status == 'Fully Paid')
+```
+
+```{r}
+default_df = df_approved %>% filter(loan_status == 'Default')
+```
+
+```{r}
+library(tm)
+library(RColorBrewer)
+library(wordcloud)
+
+# WordCloud of loan title of Charged Off Loans
+
+loan_descriptions.corpus <- Corpus(VectorSource(charged_off_df['title']))
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removePunctuation)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeNumbers)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, tolower)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeWords, stopwords("english"))
+
+wordcloud(loan_descriptions.corpus,
+          max.words = 100,
+          random.order=FALSE, 
+          rot.per=0.30, 
+          use.r.layout=FALSE, 
+          colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# WordCloud of loan title of Late Paid Loans
+loan_descriptions.corpus <- Corpus(VectorSource(late_df['title']))
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removePunctuation)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeNumbers)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, tolower)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeWords, stopwords("english"))
+
+wordcloud(loan_descriptions.corpus,
+          max.words = 100,
+          random.order=FALSE, 
+          rot.per=0.30, 
+          use.r.layout=FALSE, 
+          colors=brewer.pal(8, "Paired"))
+```
+```{r}
+# WordCloud of loan title of Defaulted Loans
+loan_descriptions.corpus <- Corpus(VectorSource(default_df['title']))
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removePunctuation)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeNumbers)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, tolower)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeWords, stopwords("english"))
+
+wordcloud(loan_descriptions.corpus,
+          max.words = 100,
+          random.order=FALSE, 
+          rot.per=0.30, 
+          use.r.layout=FALSE, 
+          colors=brewer.pal(8, "Paired"))
+```
+```{r}
+# WordCloud of loan title of Fully Paid Loans
+loan_descriptions.corpus <- Corpus(VectorSource(fully_paid_df['title']))
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removePunctuation)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeNumbers)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, tolower)
+loan_descriptions.corpus <- tm_map(loan_descriptions.corpus, removeWords, stopwords("english"))
+
+wordcloud(loan_descriptions.corpus,
+          max.words = 100,
+          random.order=FALSE, 
+          rot.per=0.30, 
+          use.r.layout=FALSE, 
+          colors=brewer.pal(8, "Paired"))
+```
+
+
+# Geographical Analysis 
+
+
+### HeatMap of Applied Loan Amount by State
+```{r}
+library(choroplethr)
+library(choroplethrMaps)
+
+
+df_approved$region <- df_approved$addr_state
+df_approved$region <- as.factor(df_approved$region)
+levels(df_approved$region)<- c("alaska", "alabama","arkansas", "arizona", "california","colorado","connecticut","district of columbia","delaware","florida","georgia","hawaii","iowa","idaho","illinois","indiana","kansas","kentucky","louisiana","massachusetts","maryland","maine","michigan","minnesota","missouri","mississippi","montana","north carolina","north dakota","nebraska","new hampshire","new jersey","new mexico","nevada","new york","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","virginia","vermont","washington","wisconsin","west virginia","wyoming")
+
+state_by_loan_amount <-
+df_approved %>% group_by(region) %>%
+  summarise(value = sum(loan_amnt, na.rm=TRUE))
+
+state_choropleth(state_by_loan_amount, title = "Loan Amount by State", legend="loan_amnt")
+```
+
+```{r}
+# df_approved$region <- df_approved$addr_state
+# df_approved$region <- as.factor(df_approved$region)
+# levels(df_approved$region)<- c("alaska", "alabama","arkansas", "arizona", "california","colorado","connecticut","district of columbia","delaware","florida","georgia","hawaii","iowa","idaho","illinois","indiana","kansas","kentucky","louisiana","massachusetts","maryland","maine","michigan","minnesota","missouri","mississippi","montana","north carolina","north dakota","nebraska","new hampshire","new jersey","new mexico","nevada","new york","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","virginia","vermont","washington","wisconsin","west virginia","wyoming")
+
+# all_states <- map_data("state")
+# state_by_loan <-df_approved %>% group_by(region) %>% summarise(value = sum(loan_amnt, na.rm=TRUE))
+# state_by_loan$region <- as.character(state_by_loan$region)
+
+# Total <- merge(all_states, state_by_loan, by="region")
+
+# p <- ggplot()
+# p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$value),colour="white") + scale_fill_continuous(low = "skyblue", high = "darkblue", guide="colorbar")
+# P1 <- p + theme_bw()  + labs(fill = "Gradient of loan amount" ,title = "Heat Map of loan amount in all states", x="", y="")
+# P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+```
+
+### HeatMap of Average Income by State
+```{r}
+state_by_avg_annual_inc <-
+df_approved %>% group_by(region) %>%
+  summarise(value = mean(annual_inc, na.rm=TRUE))
+
+state_choropleth(state_by_avg_annual_inc, title = "Average Annual Income by State", legend="annual_inc", num_colors=8)
+
+```
+
+### Charged Off Loans Proportion by State
+```{r}
+options(repr.plot.width=10, repr.plot.height=10)
+charged_off_df %>% group_by(addr_state) %>% 
+summarise(charged_off.pct = n() * 100 / 204282) %>% ggplot(aes(x = reorder(addr_state, charged_off.pct), y = charged_off.pct)) +
+geom_bar(stat = "identity", fill = "lightblue2", aes(color = I('white')), size = 0.1)+coord_flip()+xlab("States") + ylab("Percent of Charged Off Loans")
+```
+
+# Fully Paid Loans Proportion by State
+```{r}
+options(repr.plot.width=10, repr.plot.height=10)
+
+fully_paid_df %>% group_by(addr_state) %>% 
+summarise(fully_paid.pct = n() * 100 / 204282) %>% ggplot(aes(x = reorder(addr_state, fully_paid.pct), y = fully_paid.pct)) +
+geom_bar(stat = "identity", fill = "lightblue2", aes(color = I('white')), size = 0.1)+coord_flip()+xlab("States") + ylab("Percent of Fully Paid Loans")
+```
+
+# Bivariate EDA
+
+```{r}
+# Creating new variable lstatus with only two categories: bad loans(late, charged off, default) and not bad loans
+
+bad_indicators <- c("Charged Off ",
+                    "Default",
+                    "Does not meet the credit policy. Status:Charged Off",
+                    "Default Receiver", 
+                    "Late (16-30 days)",
+                    "Late (31-120 days)")
+
+# lstatus = 1 if loan is bad ; lstatus = 0 if loan is not bad
+df_approved$lstatus <- ifelse(df_approved$loan_status %in% bad_indicators, 1,
+                          ifelse(df_approved$loan_status=="", NA, 0)
+                          )
+```
+
+### Requested Loan Amount v.s. Loan Status 
+
+```{r}
+ggplot(df_approved, aes(loan_status, loan_amnt)) + geom_boxplot(aes(fill = loan_status)) + theme(axis.text.x = element_blank()) +
+  labs(list(
+    title = "Loan amount by status",
+    x = "Status",
+    y = "Amount"))
+```
+
+### Requested Loan Amount v.s. Loan Status(Not Bad v.s. Bad)
+```{r}
+df_approved %>% ggplot(aes(as.factor(lstatus), loan_amnt)) + geom_boxplot(aes(fill=lstatus)) +
+  labs(list(
+    title = "Loan amount by Loan Status (Not Bad v.s. Bad Loans)",
+    x = "Status",
+    y = "Applied Amount"))
+```
+
+```{r}
+# T-test: Do bad loans have higher applied loan amounts than not bad loans on average and is this statistically significant?
+t.test(loan_amnt ~ lstatus, data=df_approved)
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test: : Do bad loans have higher applied loan amounts than not bad loans on average and is this statistically significant?
+wilcox.test(loan_amnt ~ lstatus, data=df_approved)
+```
+
+### Average current balance of all accounts by Loan Staus(Not Bad v.s. Bad Loans)
+```{r}
+df_approved %>% ggplot(aes(as.factor(lstatus), avg_cur_bal)) + geom_boxplot(aes(fill=lstatus)) +
+  labs(list(
+    title = "Average current balance of all accounts by Loan Status (Not Bad v.s. Bad Loans)",
+    x = "Status",
+    y = "Average Current Balance of all Accounts"))
+```
+```{r}
+# Is the difference in Average current balance of all accounts between bad loans and not bad loans statistically significant? (parametric test)
+t.test(avg_cur_bal ~ lstatus, data=df_approved)
+```
+
+```{r}
+# Is the difference in Average current balance of all accounts between bad loans and not bad loans statistically significant? (non-parametric test)
+wilcox.test(avg_cur_bal ~ lstatus, data=df_approved)
+```
+
+### Interest Rate by Grade
+
+```{r}
+# Taking out the % sign at the end of each interest rate and changing datatype from string to float
+df_approved$int_rate <- substr(df_approved$int_rate,1, nchar(df_approved$int_rate)-1)
+df_approved$int_rate <- as.numeric(df_approved$int_rate)
+```
+
+```{r}
+ggplot(df_approved , aes(x = grade , y = int_rate , fill = grade)) + 
+        geom_boxplot() + 
+        labs(y = 'Interest Rate' , x = 'Grade')
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade A applicants and grade B applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='A' | grade=='B'))
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade B applicants and grade C applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='B' | grade=='C'))
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade B applicants and grade C applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='C' | grade=='D'))
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade D applicants and grade E applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='D' | grade=='E'))
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade E applicants and grade F applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='E' | grade=='F'))
+```
+
+```{r}
+# Independent 2-group Mann-Whitney U Test on loan amount difference between grade F applicants and grade G applicants
+wilcox.test(int_rate ~ grade, data=df_approved%>%filter(grade=='F' | grade=='G'))
+```
+
+### Applied Loan Amount v.s. Home Ownership
+```{r}
+ggplot(data=df_approved, aes(home_ownership,loan_amnt,fill=home_ownership))+geom_boxplot(outlier.color = "blue")+labs(title="Box Plot of Loan Amount by Homeownership")
+```
+
+```{r}
+# Is the difference in loan amount between home owners and those who bought their houses through mortgage statistically significant? (parametric test)
+t.test(loan_amnt ~ home_ownership, data=df_approved%>%filter(home_ownership =='MORTGAGE' | home_ownership=='OWN'))
+```
+
+```{r}
+# Is the difference in loan amount between home owners and those who bought their houses through mortgage statistically significant? (non-parametric test)
+wilcox.test(loan_amnt ~ home_ownership, data=df_approved%>%filter(home_ownership =='MORTGAGE' | home_ownership=='OWN'))
+```
+
+```{r}
+# Is the difference in loan amount between home owners and those who rented their housesstatistically significant? (parametric test)
+t.test(loan_amnt ~ home_ownership, data=df_approved%>%filter(home_ownership =='RENT' | home_ownership=='OWN'))
+```
+
+```{r}
+# Is the difference in loan amount between home owners and those who rented their housesstatistically significant? (non-parametric test)
+wilcox.test(loan_amnt ~ home_ownership, data=df_approved%>%filter(home_ownership =='RENT' | home_ownership=='OWN'))
+```
+
+### Loan Status Proportion by Grade
+
+```{r}
+library(vcd)
+
+mosaic(~lstatus+grade, 
+       data=df_approved, 
+       gp=shading_max,
+       split_vertical=T)
+```
+
+### Loan Status Proportions by Employment Length
+```{r}
+ggplot(filter(df_approved, emp_length != 'n/a'), aes(x =emp_length, fill = loan_status)) + 
+geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) +labs(x = 'emp_length') + 
+  scale_fill_discrete(name="Loan_Status") + 
+theme(axis.text.x = element_text(angle = 45, vjust = 0.8, hjust=1))
+```
+
+### Purpose of Loans v.s. Percentage of Charged Off Loans
+```{r}
+charged_off_df %>% group_by(purpose) %>% summarise(charged_off.pct = n() * 100 / 204282) %>% 
+ggplot(aes(x = reorder(purpose, charged_off.pct), y = charged_off.pct)) + geom_bar(stat = "identity", fill =  "coral", aes(color = I('black')), size = 0.1) + coord_flip() + xlab("Purpose") + ylab("Percent of Charged Off Loans")
+```
+
+### Purpose of Loans v.s. Percentage of Fully Paid Loans
+```{r}
+fully_paid_df %>% group_by(purpose) %>% summarise(fully_paid.pct = n() * 100 / 204282) %>% 
+ggplot(aes(x = reorder(purpose, fully_paid.pct), y = fully_paid.pct)) + geom_bar(stat = "identity", fill =  "coral", aes(color = I('black')), size = 0.1) + coord_flip() + xlab("Purpose") + ylab("Percent of Fully Paid Back Loans")
+```
+
+### Applied Loan Amount v.s. Annual Income
+```{r}
+ggplot(df_approved[sample(244179 , 10000) , ], aes(x = annual_inc , y = loan_amnt , color = int_rate)) +
+        geom_point(alpha = 0.5 , size = 1.5) + 
+        geom_smooth(se = F , color = 'darkred' , method = 'loess') +
+        xlim(c(0 , 300000)) + 
+        labs(x = 'Annual Income' , y = 'Applied Loan Ammount' , color = 'Interest Rate')
+```
+
+```{r}
+# Linear Regression on Applied Loan Amount v.s. Annual Income
+summary(lm(loan_amnt~annual_inc, data=df_approved))
+```
+
+### Applied Loan Amount v.s. Purpose of Loan
+```{r}
+df_approved %>%select(purpose,loan_amnt)%>%ggplot(aes(x=purpose,y=loan_amnt,col=purpose))+geom_jitter(size=0.5)+labs(title="Applied Loan Amounts by Purpose", las=2)
+```
+
+
+### Average Interest Rate for Loans
+```{r}
+df_approved %>%select(issue_d_year,grade,int_rate)%>%group_by(issue_d_year,grade)%>%summarise(avg_intrate=mean(int_rate))%>%
+  ggplot(aes(x=issue_d_year,y=avg_intrate,group=grade,col=grade))+geom_line(size=1.5)+labs(x="Year",y="Avg Interest Rate",title="Average Interest Rate for Loans")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
