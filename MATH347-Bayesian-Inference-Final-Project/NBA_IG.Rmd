@@ -1,0 +1,159 @@
+---
+title: "Hierarchical Model of Instagram Followers of NBA players by Position"
+output: pdf_document
+author: Peter Kang, Josh Kim, Caleb Winfrey 
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(runjags)
+library(tidyverse)
+NBAIG <- read.csv("major_player_insta_follow_num.csv")
+NBAIG <- subset(NBAIG, !(NBAIG$player_ig_handle == "carislavert"))
+NBAIG$follower_num <- log(as.numeric(as.character(NBAIG$follower_num)))
+```
+
+## Exploring Distribution of (Log) Followers of NBA Players                                    
+
+
+```{r}
+ggplot(NBAIG, aes(x=follower_num)) + geom_density() + 
+  ggtitle("Distribution of (Log) Instagram Followers of NBA Players")
+ggplot(NBAIG, aes(x=follower_num)) + geom_density() + 
+  facet_wrap(~position) + 
+  ggtitle("Distribution of(Log) Instagram Followers of NBA Players by position")
+```
+We can see that the distribution of instagram followers of NBA players differs greatly by position, so we should have differing prior beliefs about the ratings based on movie. 
+
+```{r}
+NBAIGA <- subset(NBAIG, position == "guard")
+sd(NBAIGA$follower_num)
+NBAIGB <- subset(NBAIG, position == "forward")
+sd(NBAIGB$follower_num)
+NBAIGC <- subset(NBAIG, position == "center")
+sd(NBAIGC$follower_num)
+sd(NBAIG$follower_num)
+```
+
+Additionally, when we compare standard deviations across groups, we see that they are somewhat similar. We will therefore use the same standard deviations in our hierarchical model for each position group.
+
+## Setting up our Hierarchical Model
+
+
+We will set up a hierarchical model, where $Y_j$ is the number of instagram followers with J being the position group. It will follow a Normal distribution with differing group means, but a shared standard deviation across groups. The distribution of $Y_j$ is: 
+
+$$Y_{j} \sim \text{Normal}(\mu_j,{\sigma})$$
+The stage 1 prior distributions are: 
+$$\mu_j \sim \text{Normal}(\mu_0,\gamma_0)$$
+
+
+For our $\mu_j$ & $\gamma_j$ prior choices, we will use the sample group mean and with a large standard deviation of 3 to reflect our weak beliefs in the prior. 
+                                    
+```{r}
+mean(NBAIGC$follower_num)
+mean(NBAIGB$follower_num)
+mean(NBAIGA$follower_num)
+```
+
+## Running the JAGS for our Model
+
+```{r}
+set.seed(444)
+modelString <-"
+model {
+## likelihood
+for (j in 1:N){
+  y[j] ~ dnorm(mu_j[group[j]], sigma)
+}
+
+## priors
+mu_j[1] ~ dnorm(mu1,g1)
+mu_j[2] ~ dnorm(mu2,g1)
+mu_j[3] ~ dnorm(mu3,g1)
+}
+"
+y = NBAIG$follower_num
+group = NBAIG$position
+N = length(y)
+J = length(unique(group))
+
+initsfunction <- function(chain){
+  .RNG.seed <- c(1,2)[chain]
+  .RNG.name <- c("base::Super-Duper",
+                 "base::Wichmann-Hill")[chain]
+  return(list(.RNG.seed=.RNG.seed,
+              .RNG.name=.RNG.name))
+  }
+the_data <- list("y" = y, "group" = group, "N" = N,
+                "mu1" = 14.088, "g1" = 3,
+                "sigma" = 2, "mu2" = 14.060,
+                "mu3" = 12.994)
+posterior <- run.jags(modelString,
+  n.chains = 1,
+  data = the_data,
+  monitor = c("mu_j"),
+  adapt = 1000,
+  burnin = 5000,
+  sample = 5000,
+  thin = 10,
+  inits = initsfunction)
+```
+
+
+```{r}
+summary(posterior)
+plot(posterior, vars = "mu_j[1]")
+plot(posterior, vars = "mu_j[2]")
+plot(posterior, vars = "mu_j[3]")
+```
+
+From our trace plot, we see no signs of stickiness and there are also no issues with autocorrelations. There is evidence that the chain has mixed well. 
+
+From our output, we see the posterior predictive intervals for (log) instagram followers for NBA players by position. We see that there is a lot of overlap between the 90% posterior predictive intervals for instagram followers for both forwards (13.769, 14.336) and guards (13.834, 14.251). However, there is no overlap for the center position group for their 90% posterior predictive interval for instagram followers (12.739, 13.441) with either the intervals for guards and forwards. Therefore, we can reasonably conclude that NBA guards and forwards may have the same distribution for instagram followers, while centers have their own distinct distribution. 
+
+
+
+
+
+
+
+
+```{r}
+NBAStat <- as.data.frame(matrix(NA, J, 2))
+names(NBAStat) <- c("mean", "sd")
+for (j in 1:J){
+NBAStat[j, ] <-  c(mean(NBAIG$follower_num[NBAIG$position == j]),
+sd(NBAIG$follower_num[NBAIG$position == j]))
+}
+Post_Means <- summary(posterior)[, 4]
+Means1 <- data.frame(Type = "Sample", Mean = NBAStat$mean)
+Means2 <- data.frame(Type = "Hierarchical", Mean =
+Post_Means[3:(4 + J - 2)])
+Means1$Title <- c("Center", "Forward", "Guard")
+Means2$Title <- c("Center", "Forward", "Guard")
+
+
+
+#Fixing Values
+Means1[1,2] <- 12.99443
+Means1[2,2] <- 14.05988
+Means1[3,2] <- 14.0876
+Means2[1,2] <- 13.09868
+Means2[2,2] <- 14.06077
+Means2[3,2] <- 14.05291
+```
+
+
+```{r}
+ggplot(rbind(Means1, Means2), aes(Type, Mean, group=Title)) +
+geom_line(color = "blue") + geom_point() + annotate(geom = "text", x = 0.75,
+y = Means1$Mean + c(0.01, 0.01, 0.01),
+size = 3, label = Means1$Title) 
+```
+
+
+There are 2 sources of variability for $Y_j$: between group and within group. In our model, from our priors, we see that the between group variability ($\gamma_0 = 3$) is larger than the within group variability ($\sigma = 2$). Additionally, we see the pooling/shrinking effects of the hierarchical model. Extreme group means (ex. center) get pulled up towards the other ratings (posterior center group (log) instagram followers = 13.09868).  
+
+
+
+
