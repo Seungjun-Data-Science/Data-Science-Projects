@@ -16,7 +16,7 @@ How do prior and posterior distributions compare to each other?
 - How do we choose priors? Which model should we use?
 - If we use the hierarchical model, for which position is the shrinkage / pooling effect the most prominent? What does this mean?
 
-### Jupyter Notebooks
+### Jupyter and Rmd Notebooks
 - Wrangling and Cleaning Basketball Reference Data.ipynb: Cleaning and Wrangling Data. Python BeautifulSoup Scraper to collect instagram follower numbers from instagram.com for 81 major NBA Players
 - Naive Bayes Model.ipynb: Comparison of performance amongst Gaussian Naive Bayes model, Guassian Naive Bayes Model with highly correlated features removed (feature independence), Logistic Regression and Decision Tree Classifier. Identified top 5 important features by choosing the five features with highest variability within each class (y=1 / y=0).
 - NBA_IG.Rmd: Using R to build a hierarchical model for Mean Instagram Follower Number for the three groups by position (Center, Guard, Forward). ($\mu_j$ where j = guard, center, forward) 
