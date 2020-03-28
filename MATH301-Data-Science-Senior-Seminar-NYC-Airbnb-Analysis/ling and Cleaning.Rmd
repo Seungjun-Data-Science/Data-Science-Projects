@@ -1,0 +1,185 @@
+---
+title: "Data Wrangling and Cleaning"
+author: "Seungjun (Josh) Kim"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+### Library and Data Loading
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Load in Libraries / Packages
+
+library(tidyverse)
+library(ggthemes)
+library(GGally)
+library(ggExtra)
+library(caret)
+library(glmnet)
+library(corrplot)
+library(leaflet)
+library(kableExtra)
+library(RColorBrewer)
+library(plotly)
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+th <- theme_fivethirtyeight() + theme(axis.title = element_text(), axis.title.x = element_text()) # global theme for ggplot2 objects
+
+set.seed(42)
+
+# Read in 2019 NYC airbnb Data
+abnb19 <- read.csv("AB_NYC_2019.csv", encoding="UTF-8", stringsAsFactors = F, na.strings=c(""))
+
+# Read in 2020 NYC Airbnb Data
+abnb20 <- read.csv("listings.csv", encoding="UTF-8", stringsAsFactors = F, na.strings=c(""))
+
+# Read in tract-level ACS 2017 Data
+acs17 <- read.csv("acs2017_census_tract_data.csv")
+
+nyc_tract <- read.csv("nyc_census_tracts.csv")
+```
+
+### Taking a peak into Data
+
+```{r}
+# First five lines of 2020 nyc airbnb data
+head(abnb20)
+```
+
+```{r}
+# First five lines of 2019 nyc airbnb data
+head(abnb19)
+```
+
+### Remove some unncessary variables
+
+```{r}
+# Remove unnecessary columns
+vars_delete <- c("id", "host_id", "host_name")
+abnb19 <- select(abnb19, -vars_delete)
+abnb20 <- select(abnb20, -vars_delete)
+```
+
+### Missing Values
+
+```{r}
+# Checking how many missing values are there in each variable for year 2019
+sapply(abnb19, function(x) sum(is.na(x)))
+```
+
+```{r}
+# Checking how many missing values are there in each variable for year 2020
+sapply(abnb20, function(x) sum(is.na(x)))
+```
+
+```{r}
+# Replace NAs with 0
+
+abnb19$reviews_per_month <- ifelse(is.na(abnb19$reviews_per_month), 0, abnb19$reviews_per_month)
+abnb20$reviews_per_month <- ifelse(is.na(abnb20$reviews_per_month), 0, abnb20$reviews_per_month)
+
+abnb19$number_of_reviews <- ifelse(is.na(abnb19$number_of_reviews), 0, abnb19$number_of_reviews)
+abnb20$number_of_reviews <- ifelse(is.na(abnb20$number_of_reviews), 0, abnb20$number_of_reviews)
+
+abnb19$last_review <- ifelse(is.na(abnb19$last_review), "No Review", abnb19$last_review)
+abnb20$last_review <- ifelse(is.na(abnb20$last_review), "No Review", abnb20$last_review)
+```
+
+```{r}
+# Omit observations that has any missing value in any of the columns
+abnb19 <- na.omit(abnb19)
+abnb20 <- na.omit(abnb20)
+```
+
+```{r}
+# Checking how many missing values are there in each variable for year 2019
+
+sapply(abnb19, function(x) sum(is.na(x)))
+```
+
+```{r}
+# Checking how many missing values are there in each variable for year 2020
+
+sapply(abnb20, function(x) sum(is.na(x)))
+```
+
+```{r}
+glimpse(abnb19)
+```
+
+```{r}
+glimpse(abnb20)
+```
+
+### Checking if there are any anomalies in "Price" variable
+
+Price is going to be our "response" variable for prediction later, so it's important to identify any weird values (e.g. minus or 0)
+
+```{r}
+# Number of observations that have price 0 or lower in 2019 data
+dim(abnb19 %>% filter(price <= 0))[1]
+```
+
+```{r}
+# Number of observations that have price 0 or lower in 2020 data
+
+dim(abnb20 %>% filter(price <= 0))[1]
+```
+
+```{r}
+# We Drop observations that have price = 0 or lower because this may be dummy / example entries on the website or some indication of an error in the system which shouldn't be included as part of the analysis
+
+abnb19 <- abnb19 %>% filter(price > 0)
+abnb20 <- abnb20 %>% filter(price > 0)
+```
+
+```{r}
+# Add "borough" information from nyc_tract data to ACS17 data
+acs <- acs17 %>% inner_join(nyc_tract %>% select('CensusTract', 'Borough'), by=c('TractId'='CensusTract'))
+```
+
+```{r}
+# Average values of variables of tracts for each borough
+
+acs_avg_borough <- acs %>% group_by(Borough) %>% summarize(totalpop = sum(TotalPop, na.rm=TRUE), men_avg = mean(Men, na.rm=TRUE), wom_avg = mean(Women, na.rm=TRUE),
+                                        hisp_avg = mean(Hispanic, na.rm=TRUE), white_avg = mean(White, na.rm=TRUE), black_avg = mean(Black, na.rm=TRUE), 
+                                        native_avg = mean(Native, na.rm=TRUE), asian_avg = mean(Asian, na.rm=TRUE), pacific_avg = mean(Pacific, na.rm=TRUE),
+                                        inc_avg = mean(Income, na.rm=TRUE), pov_avg = mean(Poverty, na.rm=TRUE), unemp_avg = mean(Unemployment, na.rm=TRUE),
+                                        childpov_avg = mean(ChildPoverty, na.rm=TRUE), selfemp_avg = mean(SelfEmployed, na.rm=TRUE))
+```
+
+```{r}
+abnb19 <- abnb19 %>% left_join(acs_avg_borough, by=c('neighbourhood_group' = 'Borough'))
+abnb20 <- abnb20 %>% left_join(acs_avg_borough, by=c('neighbourhood_group' = 'Borough'))
+```
+
+### Fixing Data Types of Features
+
+```{r}
+# Change datatype of factor features from char to fct
+fact_feat <- c("neighbourhood_group", "neighbourhood", "room_type")
+abnb19[fact_feat] <- map(abnb19[fact_feat], as.factor)
+abnb20[fact_feat] <- map(abnb20[fact_feat], as.factor)
+```
+
+```{r}
+# Change datatype of numerical features from char to dbl
+
+Sys.setlocale("LC_ALL", "C")
+
+dbl_feat <- c("latitude","longitude","price","minimum_nights","number_of_reviews","reviews_per_month","calculated_host_listings_count","availability_365")
+abnb19[dbl_feat] <- map(abnb19[dbl_feat], as.double)
+abnb20[dbl_feat] <- map(abnb20[dbl_feat], as.double)
+```
+
+```{r}
+# Save these wrangled CSV files
+
+# write.csv(abnb19,'airbnb19.csv')
+# write.csv(abnb20,'airbnb20.csv')
+```
+
+
