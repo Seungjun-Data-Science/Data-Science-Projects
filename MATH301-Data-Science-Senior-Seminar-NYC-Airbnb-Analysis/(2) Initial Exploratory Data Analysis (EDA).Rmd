@@ -1,0 +1,217 @@
+---
+title: "Some Explanatory Data Analysis (EDA)"
+output: html_notebook
+author: "Seungjun (Josh) Kim"
+---
+
+### Import Libraries and Data
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(GGally)
+library(ggExtra)
+library(caret)
+library(glmnet)
+library(corrplot)
+library(leaflet)
+library(kableExtra)
+library(RColorBrewer)
+library(plotly)
+library(tm)
+library(lubridate)
+library(caret)
+library(lattice)
+# library(wordcloud)
+# library(MASS)
+# library(NLP)
+```
+
+```{r}
+# Read in Wrangled Data
+
+abnb16 <- read.csv("airbnb16.csv")
+abnb17 <- read.csv("airbnb17.csv")
+abnb18 <- read.csv("airbnb18.csv")
+abnb19 <- read.csv("airbnb19.csv")
+abnb20 <- read.csv("airbnb20.csv")
+```
+
+```{r}
+# Drop Unnecessary columns (we don't need the first column which is the index column)
+
+abnb16 <- dplyr::select(abnb16,-1)
+abnb17 <- dplyr::select(abnb17,-1)
+abnb18 <- dplyr::select(abnb18,-1)
+abnb19 <- dplyr::select(abnb19,-1)
+abnb20 <- dplyr::select(abnb20,-1)
+```
+
+```{r}
+# Merged all datasets into one
+
+abnb16$year <- "2016" 
+abnb17$year <- "2017"
+abnb18$year <- "2018"
+abnb19$year <- "2019" 
+abnb20$year <- "2020"
+
+abnb <- rbind(abnb16, abnb17,abnb18, abnb19, abnb20)
+
+abnb$year <- as.factor(abnb$year)
+```
+
+```{r}
+th <- theme_fivethirtyeight() + theme(axis.title = element_text(), axis.title.x = element_text())
+```
+
+### Price Distribution by room type
+
+```{r}
+# Boxplots of price distributions by room type
+ggplot(abnb, aes(x = room_type, y = price)) +
+  geom_boxplot(aes(fill = room_type)) + 
+  th + 
+  xlab("Room type") + 
+  ylab("Price") + scale_y_log10() +
+  ggtitle("Price Distributions by room type in 2016-2020") + 
+  geom_hline(yintercept = mean(abnb$price), color = "purple", linetype = 2) + facet_grid(~year) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+```{r}
+# Mean and Meidan price by room type over time
+abnb %>% group_by(year, room_type) %>% summarize(median = median(price), mean = mean(price)) %>% arrange(room_type,year)
+```
+
+Previous literature showed that entire homes on the platform of Airbnb in New York City cost on average of twice as much as private rooms; however, the difference between the price of a private room and a shared room is not as significant at approximately $15. How do these price differences look like in 2019 and 2020? Are they statistically significant?
+
+```{r}
+# Regression of price on entire apartment v.s. private room in 2017
+summary(lm(price ~ room_type, data = abnb %>% filter(year=="2017" & room_type %in% c('Entire home/apt','Private room'))))
+```
+
+```{r}
+# Regression of price on entire apartment v.s. private room in 2020
+summary(lm(price ~ room_type, data = abnb %>% filter(year=="2020" & room_type %in% c('Entire home/apt','Private room'))))
+```
+
+```{r}
+# Regression of price on private room v.s. shared room in 2017
+summary(lm(price ~ room_type, data = abnb %>% filter(year=="2017" & room_type %in% c('Private room','Shared room'))))
+```
+
+```{r}
+# Regression of price on private room v.s. shared room in 2020
+summary(lm(price ~ room_type, data = abnb %>% filter(year=="2020" & room_type %in% c('Private room','Shared room'))))
+```
+
+### Price Distribution by Neighborhood Group
+
+```{r}
+ggplot(abnb, aes(x = neighbourhood_group, y = price)) +
+  geom_boxplot(aes(fill = neighbourhood_group)) + 
+  th + ylab("Price") + scale_y_log10() +
+  ggtitle("Price Distributions by Neighborhood Group in 16'-20'") + 
+  geom_hline(yintercept = mean(abnb$price), color = "purple", linetype = 2) + facet_grid(~year) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+```{r}
+abnb %>% group_by(year, neighbourhood_group) %>% summarize(median = median(price), mean = mean(price)) %>% arrange(neighbourhood_group,year)
+```
+
+```{r}
+
+```
+
+
+### Number of listings by Room Type
+
+```{r}
+ggplot(abnb, aes(x=room_type, y=(..count..), fill=room_type)) + geom_bar() + facet_grid(~year) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +ggtitle("Number of Listings Breakdown by Room Type in 2016-2020") + ylab("Number of Listings")
+```
+
+### Number of listings by neighbourhood area in 2016-2020
+
+```{r}
+abnb %>% group_by(year, neighbourhood_group) %>% tally() %>% 
+  ggplot(aes(x = reorder(neighbourhood_group, n), n)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  theme_fivethirtyeight() +
+  ggtitle("Number of listings by neighbourhood group 16'-20'") +
+  geom_text(aes(x = neighbourhood_group, y = 1, label = paste0(n)), hjust=-1.5, vjust=.5, size = 4, fontface = 'bold') +
+  coord_flip() + facet_grid(~year)
+```
+
+```{r}
+listng_n_by_neighb_df <- rbind(abnb %>% group_by(year, neighbourhood_group) %>% tally(), abnb %>% group_by(year, neighbourhood_group) %>% tally())
+```
+
+```{r}
+listng_n_by_neighb_df %>% filter(neighbourhood_group %in% c('Manhattan', 'Brooklyn')) %>%
+  ggplot(aes(x = year, y = n, group=neighbourhood_group, color=neighbourhood_group)) +
+  geom_line() + 
+  theme_fivethirtyeight() +
+  ggtitle("Number of listings in Manhattan and Brooklyn in 16'-20'")
+```
+
+```{r}
+listng_n_by_neighb_df %>% filter(neighbourhood_group %in% c('Bronx', 'Queens', 'Staten Island')) %>%
+  ggplot(aes(x = year, y = n, group=neighbourhood_group, color=neighbourhood_group)) +
+  geom_line() + 
+  theme_fivethirtyeight() +
+  ggtitle("Number of listings in Queens,Bronx,and SI in 16'-20'")
+```
+
+```{r}
+# 2017 - Leaflet Map of Listings
+
+ palett17 <- colorFactor(palette = c("red", "green", "blue", "purple", "yellow"), domain = abnb17$neighbourhood_group)
+ 
+ leaflet(data = abnb17) %>% addProviderTiles(providers$CartoDB.DarkMatterNoLabels) %>%  addCircleMarkers(~longitude, ~latitude, color = ~palett17(neighbourhood_group), weight = 1, radius=1, fillOpacity = 0.1, opacity = 0.1,
+                                                                                                        label = paste("Name:", abnb17$name)) %>% 
+     addLegend("bottomright", pal = palett17, values = ~neighbourhood_group,
+     title = "Neighbourhood groups",
+     opacity = 1
+   )
+```
+
+```{r}
+# 2020 - Leaflet Map of Listings
+
+ palett20 <- colorFactor(palette = c("red", "green", "blue", "purple", "yellow"), domain = abnb20$neighbourhood_group)
+ 
+ leaflet(data = abnb20) %>% addProviderTiles(providers$CartoDB.DarkMatterNoLabels) %>%  addCircleMarkers(~longitude, ~latitude, color = ~palett20(neighbourhood_group), weight = 1, radius=1, fillOpacity = 0.1, opacity = 0.1,
+                                                                                                        label = paste("Name:", abnb20$name)) %>% 
+     addLegend("bottomright", pal = palett20, values = ~neighbourhood_group,
+     title = "Neighbourhood groups",
+     opacity = 1
+   )
+```
+
+### Number of Reviews v.s. Price
+
+```{r}
+ggplot(abnb %>% filter(year %in% c("2017","2020") & neighbourhood_group %in% c('Queens','Bronx','Staten Island')), 
+       aes(x=number_of_reviews, y=price, color=neighbourhood_group, alpha=0.9)) + 
+  geom_point() + facet_grid(~year) + ggtitle("# of Reviews v.s. Price of Listings in Queens, Bronx, and Staten Island in 17',20'")
+```
+
+```{r}
+ggplot(abnb %>% filter(year %in% c("2017","2020") & neighbourhood_group %in% c('Manhattan','Brooklyn')), 
+       aes(x=number_of_reviews, y=price, color=neighbourhood_group, alpha=0.1)) + 
+  geom_point() + facet_grid(~year) + ggtitle("# of Reviews v.s. Price of Listings in Manhattan and Brooklyn in 17',20'")
+```
+
+
+
+
+
