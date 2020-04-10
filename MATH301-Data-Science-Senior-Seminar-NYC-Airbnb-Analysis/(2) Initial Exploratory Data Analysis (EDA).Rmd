@@ -88,6 +88,7 @@ abnb %>% group_by(year, room_type) %>% summarize(median = median(price), mean = 
 
 Previous literature showed that entire homes on the platform of Airbnb in New York City cost on average of twice as much as private rooms; however, the difference between the price of a private room and a shared room is not as significant at approximately $15. How do these price differences look like in 2019 and 2020? Are they statistically significant?
 
+##### Average price of entire apartment v.s. private room
 ```{r}
 # Regression of price on entire apartment v.s. private room in 2017
 summary(lm(price ~ room_type, data = abnb %>% filter(year=="2017" & room_type %in% c('Entire home/apt','Private room'))))
@@ -99,6 +100,14 @@ summary(lm(price ~ room_type, data = abnb %>% filter(year=="2020" & room_type %i
 ```
 
 ```{r}
+# controlling for other variables in 2020
+summary(lm(price ~ room_type + neighbourhood_group + minimum_nights + number_of_reviews + availability_365 + calculated_host_listings_count,
+           data = abnb %>% filter(year=="2020" & room_type %in% c('Private room','Entire home/apt'))))
+```
+
+##### Average price of private room v.s. shared room
+
+```{r}
 # Regression of price on private room v.s. shared room in 2017
 summary(lm(price ~ room_type, data = abnb %>% filter(year=="2017" & room_type %in% c('Private room','Shared room'))))
 ```
@@ -107,6 +116,14 @@ summary(lm(price ~ room_type, data = abnb %>% filter(year=="2017" & room_type %i
 # Regression of price on private room v.s. shared room in 2020
 summary(lm(price ~ room_type, data = abnb %>% filter(year=="2020" & room_type %in% c('Private room','Shared room'))))
 ```
+
+```{r}
+# controlling for other variables in 2020
+summary(lm(price ~ room_type + neighbourhood_group + minimum_nights + number_of_reviews + availability_365 + calculated_host_listings_count,
+           data = abnb %>% filter(year=="2020" & room_type %in% c('Private room','Shared room'))))
+```
+
+
 
 ### Price Distribution by Neighborhood Group
 
@@ -125,10 +142,73 @@ ggplot(abnb, aes(x = neighbourhood_group, y = price)) +
 abnb %>% group_by(year, neighbourhood_group) %>% summarize(median = median(price), mean = mean(price)) %>% arrange(neighbourhood_group,year)
 ```
 
-```{r}
+Previous literature showed that, in 2017, the average Airbnb accommodation prices are more expensive in Manhattan and Brooklyn. Does this hold true in 2020 as well?
 
+##### Average price in Manhattan v.s. Queens in 2017, 2019 and 2020
+
+```{r}
+# 2017
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2017" & neighbourhood_group %in% c('Manhattan','Queens'))))
 ```
 
+```{r}
+# 2019
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2019" & neighbourhood_group %in% c('Manhattan','Queens'))))
+```
+
+```{r}
+# 2020
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Manhattan','Queens'))))
+```
+
+```{r}
+# controlling for other variables in 2020
+summary(lm(price ~ neighbourhood_group + minimum_nights + number_of_reviews + availability_365 + calculated_host_listings_count,
+           data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Manhattan','Queens'))))
+```
+
+##### Average price in Brooklyn v.s. Queens in 2017, 2019 and 2020
+
+```{r}
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2017" & neighbourhood_group %in% c('Queens','Brooklyn'))))
+```
+
+```{r}
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2019" & neighbourhood_group %in% c('Queens','Brooklyn'))))
+```
+
+```{r}
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Queens','Brooklyn'))))
+```
+
+```{r}
+# controlling for other variables in 2020
+summary(lm(price ~ neighbourhood_group + minimum_nights + number_of_reviews + availability_365 + calculated_host_listings_count,
+           data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Brooklyn','Queens'))))
+```
+
+##### Average price in Manhattan v.s. Brooklyn in 2017, 2019 and 2020
+
+```{r}
+# 2017
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2017" & neighbourhood_group %in% c('Manhattan','Brooklyn'))))
+```
+
+```{r}
+# 2019
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2019" & neighbourhood_group %in% c('Manhattan','Brooklyn'))))
+```
+
+```{r}
+# 2020
+summary(lm(price ~ neighbourhood_group, data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Manhattan','Brooklyn'))))
+```
+
+```{r}
+# controlling for other variables in 2020
+summary(lm(price ~ neighbourhood_group + minimum_nights + number_of_reviews + availability_365 + calculated_host_listings_count,
+           data = abnb %>% filter(year=="2020" & neighbourhood_group %in% c('Brooklyn','Manhattan'))))
+```
 
 ### Number of listings by Room Type
 
