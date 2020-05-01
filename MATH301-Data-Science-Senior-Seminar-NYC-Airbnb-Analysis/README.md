@@ -17,6 +17,7 @@ This is the final project I did for my Math Senior Seminar on Data Science (MATH
 - Ran pairwise OLS regressions for [price ~ various room_type pairwise combinations for each year] and [price ~ various borough pairwise combinations for each year] to see if there were statistically signifcant differences in prices between different room types and boroughs and those differences changed over years.
 
 #### (3) Additional EDA.ipynb
+**- The outputs are not appearing on Github for some reason, so I leave the link for my original kernel/notebook ( https://www.kaggle.com/juminator/math301-final-project-more-eda )**
 - Examining Luxurious Listings for each year (e.g. price > Q3 + IQR x 1.5), where they are mainly located and how that changes over time
 - Number of Listings Map Visualization on a TRACT level over time
 - Analysis on Minimum Revenue of each listing (= price x minimum number of nights x Demand (proxy: Number of Reviews)) + Which areas had the highest minimum revenue and was there any shift / change in those areas over time?
